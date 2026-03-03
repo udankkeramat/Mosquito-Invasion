@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mosquito Invasion AR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #2c3e50; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: none; user-select: none; }
+        
+        #camera-feed { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        #game-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+        .interactive-canvas { pointer-events: auto !important; }
+
+        /* UI Layers */
+        #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; }
+        .menu-screen { position: absolute; inset: 0; background: rgba(30, 41, 59, 0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; transition: opacity 0.3s ease; }
+        
+        /* Background Khusus Main Menu Tanpa Overlay Gelap */
+        #menu-main {
+            background-image: url('assets/menu_background.png'); /* Sesuaikan ekstensi kalau aslinya .jpg */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-color: transparent;
+        }
+
+        .hidden { opacity: 0; pointer-events: none; z-index: -1; }
+
+        /* Buttons & Panels */
+        .panel { background: rgba(255, 255, 255, 0.95); padding: 2rem; border-radius: 1.5rem; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 4px solid #facc15; max-width: 90%; width: 350px; position: relative; }
+        .btn { display: block; width: 100%; padding: 1rem; border-radius: 999px; font-weight: 900; font-size: 1.25rem; text-transform: uppercase; cursor: pointer; transition: transform 0.1s, filter 0.1s; border: none; }
+        .btn:active { transform: translateY(4px); }
+        .btn-primary { background: linear-gradient(to bottom, #fde047, #eab308); color: #854d0e; box-shadow: 0 6px 0 #ca8a04; }
+        .btn-secondary { background: linear-gradient(to bottom, #93c5fd, #3b82f6); color: white; box-shadow: 0 6px 0 #2563eb; }
+        .btn-danger { background: linear-gradient(to bottom, #fca5a5, #ef4444); color: white; box-shadow: 0 6px 0 #dc2626; }
+
+        /* Splat Animation */
+        .splat { position: absolute; color: #fbbf24; font-weight: 900; font-size: 2.5rem; -webkit-text-stroke: 1px #b45309; text-shadow: 0 4px 0 #b45309; z-index: 20; pointer-events: none; animation: popOut 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; transform: translate(-50%, -50%); }
+        @keyframes popOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-10deg); }
+            50% { opacity: 1; transform: translate(-50%, -80%) scale(1.2) rotate(5deg); }
+            100% { opacity: 0; transform: translate(-50%, -100%) scale(1) rotate(0deg); }
+        }
+
+        /* Layar Peringatan Portrait Mode */
+        #portrait-lock { display: none; position: absolute; inset: 0; background: #2c3e50; z-index: 9999; color: white; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2rem; pointer-events: auto; }
+        @media screen and (orientation: landscape) {
+            #portrait-lock { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="portrait-lock">
+        <div class="text-7xl mb-6">📱🔄</div>
+        <h2 class="text-3xl font-black text-yellow-400 mb-2">TOLONG PUTAR HP-MU!</h2>
+        <p class="text-lg font-bold">Game ini hanya bisa dimainkan dalam mode Portrait (berdiri).</p>
+    </div>
+
+    <video id="camera-feed" autoplay playsinline muted></video>
+    <canvas id="game-canvas"></canvas>
+
+    <div id="ui-layer">
+        
+        <div id="hud" class="hidden flex justify-between p-4 w-full">
+            <div class="bg-white/90 px-5 py-2 rounded-2xl border-4 border-yellow-400 font-black text-2xl text-orange-600 shadow-lg">
+                ⭐ <span id="score">0</span>
+            </div>
+            <div class="bg-white/90 px-5 py-2 rounded-2xl border-4 border-blue-400 font-black text-2xl text-blue-600 shadow-lg">
+                ⏱️ <span id="time">60</span>
+            </div>
+        </div>
+
+        <div id="menu-main" class="menu-screen" onclick="initAudioContext()">
+            <div class="flex flex-col gap-4 mt-auto mb-12 w-[80%] max-w-[320px]">
+                <button onclick="changeState('playing')" class="btn btn-primary" id="btn-play">PLAY GAME</button>
+                <button onclick="changeState('help')" class="btn btn-secondary" id="btn-help">HOW TO PLAY</button>
+                <button onclick="changeState('settings')" class="btn btn-secondary" id="btn-settings">SETTINGS</button>
+                <button onclick="exitGame()" class="btn btn-danger" id="btn-exit">EXIT</button>
+            </div>
+        </div>
+
+        <div id="menu-help" class="menu-screen hidden">
+            <div class="panel text-left">
+                <h2 class="text-2xl font-black text-blue-600 mb-4 text-center" id="txt-help-title">HOW TO PLAY</h2>
+                <ul class="space-y-3 text-gray-700 font-medium mb-6">
+                    <li id="help-1">📱 <strong>Move your device</strong> around to find mosquitoes.</li>
+                    <li id="help-2">👆 <strong>Tap the screen</strong> exactly on the mosquito to shoot.</li>
+                    <li id="help-3">⏳ You have <strong>60 seconds</strong>. Get the highest score!</li>
+                </ul>
+                <button onclick="changeState('main')" class="btn btn-primary" id="btn-back-help">BACK</button>
+            </div>
+        </div>
+
+        <div id="menu-settings" class="menu-screen hidden">
+            <div class="panel text-left">
+                <h2 class="text-2xl font-black text-blue-600 mb-6 text-center" id="txt-settings-title">SETTINGS</h2>
+                
+                <div class="flex justify-between items-center mb-4 bg-gray-100 p-3 rounded-xl border-2 border-gray-200">
+                    <span class="font-black text-gray-700 text-lg">BGM</span>
+                    <input type="checkbox" id="toggle-bgm" checked onchange="applySettings()" class="w-6 h-6 accent-blue-500">
+                </div>
+                
+                <div class="flex justify-between items-center mb-6 bg-gray-100 p-3 rounded-xl border-2 border-gray-200">
+                    <span class="font-black text-gray-700 text-lg">SFX</span>
+                    <input type="checkbox" id="toggle-sfx" checked onchange="applySettings()" class="w-6 h-6 accent-blue-500">
+                </div>
+
+                <div class="mb-6">
+                    <label class="block font-black text-gray-700 mb-2 text-lg" id="txt-lang-label">Language / Bahasa:</label>
+                    <select id="select-lang" onchange="applySettings()" class="w-full p-3 border-2 border-blue-400 rounded-xl font-bold text-gray-700 bg-white focus:outline-none">
+                        <option value="en">English</option>
+                        <option value="id">Indonesia</option>
+                        <option value="mak">Makassar</option>
+                    </select>
+                </div>
+                
+                <button onclick="changeState('main')" class="btn btn-primary mt-2" id="btn-back-settings">BACK</button>
+            </div>
+        </div>
+
+        <div id="menu-over" class="menu-screen hidden">
+            <div class="panel">
+                <h1 class="text-4xl font-black text-red-500 mb-2" id="txt-over-title">TIME'S UP!</h1>
+                <p class="text-gray-600 font-bold mb-2" id="txt-score-label">Your Total Score:</p>
+                <div class="text-6xl font-black text-orange-500 mb-8 drop-shadow-md">⭐ <span id="final-score">0</span></div>
+                
+                <div class="flex flex-col gap-4">
+                    <button onclick="changeState('playing')" class="btn btn-primary !mt-0" id="btn-restart">PLAY AGAIN</button>
+                    <button onclick="changeState('main')" class="btn btn-danger !mt-0" id="btn-home">MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- FULLSCREEN & PORTRAIT ENFORCER ---
+        function forceFullscreenAndPortrait() {
+            let elem = document.documentElement;
+            // Layar Penuh (Fullscreen)
+            if (elem.requestFullscreen) { elem.requestFullscreen().catch(err => {}); }
+            else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); } 
+            else if (elem.msRequestFullscreen) { elem.msRequestFullscreen(); }
+            
+            // Kunci Orientasi Portrait (Jika didukung browser Android)
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('portrait').catch(err => {});
+            }
+        }
+
+        // --- TRANSLATION DICTIONARY ---
+        const dict = {
+            en: {
+                play: "PLAY GAME", help: "HOW TO PLAY", settings: "SETTINGS", exit: "EXIT", back: "BACK",
+                helpTitle: "HOW TO PLAY",
+                help1: "📱 <strong>Move your device</strong> around to find mosquitoes.",
+                help2: "👆 <strong>Tap the screen</strong> exactly on the mosquito to shoot.",
+                help3: "⏳ You have <strong>60 seconds</strong>. Get the highest score!",
+                overTitle: "TIME'S UP!", scoreLabel: "Your Total Score:",
+                playAgain: "PLAY AGAIN", mainMenu: "MAIN MENU",
+                settingsTitle: "SETTINGS", langLabel: "Language:",
+                splatText: ["SPLAT!", "GOTCHA!", "BAM!", "NICE!"]
+            },
+            id: {
+                play: "MAINKAN", help: "CARA MAIN", settings: "PENGATURAN", exit: "KELUAR", back: "KEMBALI",
+                helpTitle: "CARA MAIN",
+                help1: "📱 <strong>Putar HP-mu</strong> ke segala arah untuk mencari nyamuk.",
+                help2: "👆 <strong>Tap layarmu</strong> tepat di nyamuk untuk menembaknya.",
+                help3: "⏳ Waktumu <strong>60 detik</strong>. Kumpulkan skor tertinggi!",
+                overTitle: "WAKTU HABIS!", scoreLabel: "Total Skor Kamu:",
+                playAgain: "MAIN LAGI", mainMenu: "MENU UTAMA",
+                settingsTitle: "PENGATURAN", langLabel: "Bahasa:",
+                splatText: ["KENA!", "MANTAP!", "BAM!", "JOS!"]
+            },
+            mak: {
+                play: "A'MAIN", help: "CARANA A'MAIN", settings: "PANGATORANG", exit: "ASSULU'", back: "AMMOTERE",
+                helpTitle: "CARANA A'MAIN",
+                help1: "📱 <strong>Goyangki HP-nu</strong> mae-mai untu' naboya jamu'.",
+                help2: "👆 <strong>Tindisiki layarnu</strong> pas di jamu'na untu' natembak.",
+                help3: "⏳ Waktunu <strong>60 detik</strong> ji. Kumpulkangki sikor tinggia!",
+                overTitle: "LABBUSUMI WATTU!", scoreLabel: "Sikor Nu:",
+                playAgain: "A'MAIN POLE", mainMenu: "MENU UTAMA",
+                settingsTitle: "PANGATORANG", langLabel: "Bicara:",
+                splatText: ["KENA!", "MANTAP!", "BAM!", "MATEKO!"]
+            }
+        };
+
+        // --- SETTINGS VARIABLES ---
+        let bgmOn = true;
+        let sfxOn = true;
+        let currentLang = 'en';
+
+        // --- GAME VARIABLES ---
+        let score = 0, time = 60, isPlaying = false, gameTimer;
+        let scene, camera, renderer, raycaster, mouse, clock;
+        let mosquitoes = [];
+        
+        let hasGyro = false;
+        let currentAlpha = 0, currentBeta = 0, currentGamma = 0;
+        let screenOrientation = window.orientation || 0;
+
+        // --- ASSET VARIABLES ---
+        let baseSpriteTexture;
+        let audioContextStarted = false;
+
+        const sfxBGM = new Audio('assets/bgm.MP3'); 
+        sfxBGM.loop = true;
+        sfxBGM.volume = 1.0; 
+
+        const sfxMosquitoFly = new Audio('assets/mosquito.MP3');
+        sfxMosquitoFly.loop = true;
+        sfxMosquitoFly.volume = 0; 
+
+        const sfxSlap = new Audio('assets/slap_sfx.mp3');
+
+        // --- DOM ELEMENTS ---
+        const elScore = document.getElementById('score');
+        const elTime = document.getElementById('time');
+        const elFinalScore = document.getElementById('final-score');
+        const canvasEl = document.getElementById('game-canvas');
+        
+        const menus = {
+            main: document.getElementById('menu-main'),
+            help: document.getElementById('menu-help'),
+            settings: document.getElementById('menu-settings'),
+            hud: document.getElementById('hud'),
+            over: document.getElementById('menu-over')
+        };
+
+        // --- BGM AUTOPLAY TRICK ---
+        function initAudioContext() {
+            if (!audioContextStarted && bgmOn) {
+                sfxBGM.play().catch(e => console.log("Menunggu interaksi user untuk BGM"));
+                audioContextStarted = true;
+            }
+        }
+
+        // --- LANGUAGE & SETTINGS LOGIC ---
+        function applySettings() {
+            bgmOn = document.getElementById('toggle-bgm').checked;
+            sfxOn = document.getElementById('toggle-sfx').checked;
+            currentLang = document.getElementById('select-lang').value;
+
+            // Update Audio
+            if (!bgmOn) {
+                sfxBGM.pause();
+            } else if (audioContextStarted) {
+                sfxBGM.play();
+            }
+
+            if (!sfxOn) {
+                sfxMosquitoFly.pause();
+            } else if (isPlaying) {
+                sfxMosquitoFly.play();
+            }
+
+            // Update Teks Layar
+            const d = dict[currentLang];
+            document.getElementById('btn-play').innerText = d.play;
+            document.getElementById('btn-help').innerText = d.help;
+            document.getElementById('btn-settings').innerText = d.settings;
+            document.getElementById('btn-exit').innerText = d.exit;
+            document.getElementById('btn-back-help').innerText = d.back;
+            document.getElementById('btn-back-settings').innerText = d.back;
+            document.getElementById('txt-help-title').innerText = d.helpTitle;
+            document.getElementById('help-1').innerHTML = d.help1;
+            document.getElementById('help-2').innerHTML = d.help2;
+            document.getElementById('help-3').innerHTML = d.help3;
+            document.getElementById('txt-over-title').innerText = d.overTitle;
+            document.getElementById('txt-score-label').innerText = d.scoreLabel;
+            document.getElementById('btn-restart').innerText = d.playAgain;
+            document.getElementById('btn-home').innerText = d.mainMenu;
+            document.getElementById('txt-settings-title').innerText = d.settingsTitle;
+            document.getElementById('txt-lang-label').innerText = d.langLabel;
+        }
+
+        function exitGame() {
+            if(confirm("Keluar dari game?")) {
+                window.close(); 
+            }
+        }
+
+        // --- CORE 3D SETUP ---
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ canvas: canvasEl, alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            clock = new THREE.Clock();
+
+            // Load Spritesheet Asli
+            const textureLoader = new THREE.TextureLoader();
+            baseSpriteTexture = textureLoader.load('assets/mosquito.png', (texture) => {
+                texture.repeat.set(0.25, 1); 
+            });
+            
+            setupCameraFeed();
+            applySettings(); 
+            animate();
+        }
+
+        async function setupCameraFeed() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                document.getElementById('camera-feed').srcObject = stream;
+            } catch(e) {
+                scene.background = new THREE.Color(0x87CEEB); 
+            }
+        }
+
+        // --- DEVICE ORIENTATION (AR GYROSCOPE) ---
+        function initGyro() {
+            if (hasGyro) return;
+            const enable = () => {
+                window.addEventListener('deviceorientation', (e) => {
+                    currentAlpha = e.alpha || 0;
+                    currentBeta = e.beta || 0;
+                    currentGamma = e.gamma || 0;
+                });
+                
+                window.addEventListener('orientationchange', () => {
+                    screenOrientation = window.orientation || 0;
+                });
+                hasGyro = true;
+            };
+
+            if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(state => { if(state === 'granted') enable(); }).catch(console.error);
+            } else { enable(); }
+        }
+
+        function updateCameraRotation() {
+            if (!hasGyro) return;
+            let zee = new THREE.Vector3(0, 0, 1);
+            let euler = new THREE.Euler();
+            let q0 = new THREE.Quaternion();
+            let q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); 
+
+            let a = THREE.MathUtils.degToRad(currentAlpha);
+            let b = THREE.MathUtils.degToRad(currentBeta);
+            let g = THREE.MathUtils.degToRad(currentGamma);
+            let orient = THREE.MathUtils.degToRad(screenOrientation);
+
+            euler.set(b, a, -g, 'YXZ');
+            camera.quaternion.setFromEuler(euler);
+            camera.quaternion.multiply(q1);
+            camera.quaternion.multiply(q0.setFromAxisAngle(zee, -orient));
+        }
+
+        // --- GAMEPLAY LOGIC ---
+        function spawnMosquito() {
+            if(!isPlaying) return;
+
+            const clonedTexture = baseSpriteTexture.clone();
+            clonedTexture.needsUpdate = true; 
+            const mat = new THREE.SpriteMaterial({ map: clonedTexture, color: 0xffffff, transparent: true });
+            
+            const sprite = new THREE.Sprite(mat);
+            
+            const radius = 20 + Math.random() * 20; 
+            const theta = Math.random() * Math.PI * 2; 
+            const minPhi = Math.PI / 4;
+            const maxPhi = Math.PI * 3 / 4;
+            const phi = minPhi + Math.random() * (maxPhi - minPhi); 
+            
+            sprite.position.set(radius * Math.sin(phi) * Math.cos(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.sin(theta));
+            sprite.scale.set(6, 6, 1); 
+            
+            sprite.userData = { 
+                center: sprite.position.clone(),
+                speedX: 1 + Math.random() * 3,   
+                speedY: 2 + Math.random() * 4,   
+                speedZ: 1 + Math.random() * 3,   
+                wanderRadius: 5 + Math.random() * 10, 
+                frame: 0, 
+                animTimer: 0 
+            };
+
+            scene.add(sprite);
+            mosquitoes.push(sprite);
+
+            let spawnDelay = Math.max(500, time * 20); 
+            setTimeout(spawnMosquito, spawnDelay);
+        }
+
+        function updateMosquitoes(delta, timeElapsed) {
+            let closestDist = Infinity;
+
+            for(let i = mosquitoes.length - 1; i >= 0; i--) {
+                let m = mosquitoes[i];
+                
+                m.position.x = m.userData.center.x + Math.sin(timeElapsed * m.userData.speedX) * m.userData.wanderRadius;
+                m.position.y = m.userData.center.y + Math.cos(timeElapsed * m.userData.speedY) * (m.userData.wanderRadius * 0.5);
+                m.position.z = m.userData.center.z + Math.sin(timeElapsed * m.userData.speedZ) * m.userData.wanderRadius;
+
+                let dist = m.position.distanceTo(camera.position);
+                if (dist < closestDist) closestDist = dist;
+
+                m.userData.animTimer += delta;
+                if(m.userData.animTimer > 0.04) { 
+                    m.userData.frame = (m.userData.frame + 1) % 4;
+                    m.material.map.offset.x = m.userData.frame * 0.25;
+                    m.userData.animTimer = 0;
+                }
+            }
+
+            if (sfxOn && isPlaying) {
+                if (mosquitoes.length === 0) {
+                    sfxMosquitoFly.volume = 0;
+                } else {
+                    let vol = 1.0 - (closestDist / 50);
+                    vol = Math.max(0, Math.min(1, vol));
+                    sfxMosquitoFly.volume = vol * 0.8;
+                }
+            }
+        }
+
+        canvasEl.addEventListener('pointerdown', (e) => {
+            if(!isPlaying) return;
+            
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const hits = raycaster.intersectObjects(mosquitoes);
+            
+            if(hits.length > 0) {
+                const hitObj = hits[0].object;
+                const idx = mosquitoes.indexOf(hitObj);
+                
+                if(idx > -1) {
+                    score += 10; 
+                    elScore.innerText = score;
+                    
+                    if (sfxOn) {
+                        sfxSlap.currentTime = 0;
+                        sfxSlap.play().catch(e => console.log("Audio play failed"));
+                    }
+                    
+                    const splatTexts = dict[currentLang].splatText;
+                    let splat = document.createElement('div'); 
+                    splat.className = 'splat'; 
+                    splat.innerText = splatTexts[Math.floor(Math.random() * splatTexts.length)];
+                    splat.style.left = e.clientX + 'px'; 
+                    splat.style.top = e.clientY + 'px'; 
+                    document.getElementById('ui-layer').appendChild(splat);
+                    setTimeout(() => splat.remove(), 600);
+
+                    scene.remove(hitObj); 
+                    mosquitoes.splice(idx, 1);
+                }
+            }
+        });
+
+        // --- STATE MANAGER ---
+        function changeState(newState) {
+            initAudioContext(); 
+            forceFullscreenAndPortrait(); // Paksa masuk layar penuh saat ganti menu/mulai main
+            
+            Object.values(menus).forEach(m => m.classList.add('hidden'));
+            canvasEl.classList.remove('interactive-canvas');
+
+            if (newState === 'main') {
+                menus.main.classList.remove('hidden');
+                if (bgmOn) {
+                    sfxBGM.volume = 1.0; 
+                    sfxBGM.play();
+                }
+            } 
+            else if (newState === 'help') {
+                menus.help.classList.remove('hidden');
+            }
+            else if (newState === 'settings') {
+                menus.settings.classList.remove('hidden');
+            }
+            else if (newState === 'playing') {
+                initGyro(); 
+                
+                if (bgmOn) {
+                    sfxBGM.volume = 0.2; 
+                    sfxBGM.play();
+                }
+                if (sfxOn) {
+                    sfxMosquitoFly.volume = 0;
+                    sfxMosquitoFly.play();
+                }
+
+                menus.hud.classList.remove('hidden');
+                canvasEl.classList.add('interactive-canvas');
+                
+                score = 0; time = 60; isPlaying = true;
+                elScore.innerText = score; elTime.innerText = time;
+                
+                mosquitoes.forEach(m => scene.remove(m));
+                mosquitoes = [];
+                
+                spawnMosquito();
+                
+                clearInterval(gameTimer);
+                gameTimer = setInterval(() => {
+                    time--; elTime.innerText = time;
+                    if(time <= 0) changeState('over');
+                }, 1000);
+            }
+            else if (newState === 'over') {
+                isPlaying = false;
+                clearInterval(gameTimer);
+                elFinalScore.innerText = score;
+                
+                sfxMosquitoFly.pause(); 
+                if (bgmOn) sfxBGM.volume = 1.0; 
+
+                menus.over.classList.remove('hidden');
+            }
+        }
+
+        // --- MAIN LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const timeElapsed = clock.getElapsedTime();
+            
+            updateCameraRotation(); 
+
+            if(isPlaying) updateMosquitoes(delta, timeElapsed);
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => { 
+            camera.aspect = window.innerWidth / window.innerHeight; 
+            camera.updateProjectionMatrix(); 
+            renderer.setSize(window.innerWidth, window.innerHeight); 
+        });
+
+        window.onload = init3D;
+
+    </script>
+</body>
+</html>

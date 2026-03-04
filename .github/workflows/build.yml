@@ -9,15 +9,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
 
     - name: Setup Java
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '11'
@@ -29,7 +29,15 @@ jobs:
       run: |
         cordova create game com.banggo.mosquito "Mosquito Invasion"
         rm -rf game/www/*
-        cp -r www/* game/www/
+        
+        # Script Pintar: Cek otomatis posisi file HTML & Assets
+        if [ -d "www" ]; then
+          cp -r www/* game/www/
+        else
+          cp index.html game/www/
+          cp -r assets game/www/
+        fi
+        
         cp config.xml game/config.xml
         cd game
         cordova platform add android
@@ -37,13 +45,13 @@ jobs:
         cordova build android --release -- --packageType=bundle
 
     - name: Upload APK (Siap Install di Tab)
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Mosquito-Invasion-APK
         path: game/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
 
     - name: Upload AAB (Untuk Play Store)
-      uses: actions/upload-artifact@v3
-      with:
+      uses: actions/upload-artifact@v4
+        with:
         name: Mosquito-Invasion-AAB
         path: game/platforms/android/app/build/outputs/bundle/release/app-release.aab

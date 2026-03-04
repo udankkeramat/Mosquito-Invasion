@@ -1,0 +1,49 @@
+name: Build Game APK & AAB
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+
+    - name: Install Cordova
+      run: npm install -g cordova
+
+    - name: Build Android App
+      run: |
+        cordova create game com.banggo.mosquito "Mosquito Invasion"
+        rm -rf game/www/*
+        cp -r www/* game/www/
+        cp config.xml game/config.xml
+        cd game
+        cordova platform add android
+        cordova build android --release
+        cordova build android --release -- --packageType=bundle
+
+    - name: Upload APK (Siap Install di Tab)
+      uses: actions/upload-artifact@v3
+      with:
+        name: Mosquito-Invasion-APK
+        path: game/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
+
+    - name: Upload AAB (Untuk Play Store)
+      uses: actions/upload-artifact@v3
+      with:
+        name: Mosquito-Invasion-AAB
+        path: game/platforms/android/app/build/outputs/bundle/release/app-release.aab

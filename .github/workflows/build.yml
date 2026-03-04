@@ -30,6 +30,7 @@ jobs:
         cordova create game com.banggo.mosquito "Mosquito Invasion"
         rm -rf game/www/*
         
+        # Cek otomatis folder assets & html
         if [ -d "www" ]; then
           cp -r www/* game/www/
         else
@@ -41,16 +42,16 @@ jobs:
         cd game
         cordova platform add android
         cordova build android --release
+        
+        # Build AAB untuk Play Store
         cordova build android --release -- --packageType=bundle
+        
+        # Buka paksa lacinya biar kita bisa lihat di log!
+        echo "--- MENCARI HASIL BUILD ---"
+        find platforms/android/app/build/outputs/ -type f
 
-    - name: Upload APK
+    - name: Upload Semua Hasil (Pasti Kena!)
       uses: actions/upload-artifact@v4
       with:
-        name: Mosquito-Invasion-APK
-        path: game/**/*.apk
-
-    - name: Upload AAB
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mosquito-Invasion-AAB
-        path: game/**/*.aab
+        name: Mosquito-Invasion-Android-Files
+        path: game/platforms/android/app/build/outputs/

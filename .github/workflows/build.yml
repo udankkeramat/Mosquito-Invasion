@@ -8,7 +8,7 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     steps:
-    - name: Ambil File dari GitHub
+    - name: Ambil File
       uses: actions/checkout@v4
 
     - name: Siapkan Mesin Node
@@ -22,21 +22,34 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Install Alat Tukang
+    - name: Install Cordova
       run: npm install -g cordova
 
-    - name: Merakit APK Android
+    - name: Merakit APK Android (Mode Developer)
       run: |
         cordova create game com.banggo.mosquito "MosquitoInvasion"
         rm -rf game/www/*
-        cp -r www/* game/www/
+        
+        # Masukkan file gamemu
+        if [ -d "www" ]; then
+          cp -r www/* game/www/
+        else
+          cp index.html game/www/
+          cp -r assets game/www/
+        fi
+        
         cp config.xml game/config.xml
         cd game
         cordova platform add android
-        cordova build android --release
+        
+        # MERAKIT MODE DEBUG (Pasti Keluar APK-nya!)
+        cordova build android
+        
+        # MANTRA SAPU JAGAT: Tarik paksa APK ke halaman depan!
+        find . -name "*.apk" -exec cp {} ../ \;
 
     - name: Kirim APK ke Bosku!
       uses: actions/upload-artifact@v4
       with:
         name: Mosquito-Invasion-APK
-        path: '**/*.apk'
+        path: '*.apk'

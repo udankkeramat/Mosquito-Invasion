@@ -1,4 +1,4 @@
-name: Build Game APK & AAB
+name: Build Game APK
 
 on:
   push:
@@ -8,50 +8,35 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Repository
+    - name: Ambil File dari GitHub
       uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    - name: Siapkan Mesin Node
       uses: actions/setup-node@v4
       with:
         node-version: '18'
 
-    - name: Setup Java
+    - name: Siapkan Mesin Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Install Cordova
+    - name: Install Alat Tukang
       run: npm install -g cordova
 
-    - name: Build Android App
+    - name: Merakit APK Android
       run: |
-        cordova create game com.banggo.mosquito "Mosquito Invasion"
+        cordova create game com.banggo.mosquito "MosquitoInvasion"
         rm -rf game/www/*
-        
-        # Cek otomatis folder assets & html
-        if [ -d "www" ]; then
-          cp -r www/* game/www/
-        else
-          cp index.html game/www/
-          cp -r assets game/www/
-        fi
-        
+        cp -r www/* game/www/
         cp config.xml game/config.xml
         cd game
         cordova platform add android
         cordova build android --release
-        
-        # Build AAB untuk Play Store
-        cordova build android --release -- --packageType=bundle
-        
-        # Buka paksa lacinya biar kita bisa lihat di log!
-        echo "--- MENCARI HASIL BUILD ---"
-        find platforms/android/app/build/outputs/ -type f
 
-    - name: Upload Semua Hasil (Pasti Kena!)
+    - name: Kirim APK ke Bosku!
       uses: actions/upload-artifact@v4
       with:
-        name: Mosquito-Invasion-Android-Files
-        path: game/platforms/android/app/build/outputs/
+        name: Mosquito-Invasion-APK
+        path: '**/*.apk'

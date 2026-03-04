@@ -11,45 +11,41 @@ jobs:
     - name: Ambil File
       uses: actions/checkout@v4
 
-    - name: Siapkan Mesin Node
+    - name: Setup Node
       uses: actions/setup-node@v4
       with:
         node-version: '18'
 
-    - name: Siapkan Mesin Java
+    - name: Setup Java (Versi 11 Paling Stabil!)
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '17'
+        java-version: '11'
 
-    - name: Install Cordova
-      run: npm install -g cordova
+    - name: Install Cordova Anti-Nyangkut
+      run: |
+        npm install -g cordova
+        cordova telemetry off
 
-    - name: Paksa Mesin Inti Android (Gradle) Cetak APK!
+    - name: Merakit APK Android
       run: |
         cordova create game com.banggo.mosquito "MosquitoInvasion"
+        rm -rf game/www/*
         
-        # Pindahkan aset ganteng buatan bosku
-        if [ -d "www" ]; then
-          cp -r www/* game/www/
-        else
-          cp index.html game/www/
-          cp -r assets game/www/
-        fi
-        
+        # Pindahkan kodemu yang udah rapi itu
+        cp -r www/* game/www/
         cp config.xml game/config.xml
         
         cd game
-        cordova platform add android
-        cordova prepare android
+        # Install mesin Android versi paling stabil
+        cordova platform add android@12.0.1
         
-        # JALUR KASAR: Paksa sistem bawaan Android merakit APK-nya!
-        cd platforms/android
-        chmod +x gradlew
-        ./gradlew assembleDebug
+        # Build pakai mode cerewet! (--verbose)
+        cordova build android --debug --verbose
 
     - name: Kirim APK ke Bosku!
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: Mosquito-Invasion-APK
-        path: game/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+        path: game/platforms/android/**/*.apk

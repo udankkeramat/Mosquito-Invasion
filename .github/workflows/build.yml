@@ -25,11 +25,11 @@ jobs:
     - name: Install Cordova
       run: npm install -g cordova
 
-    - name: Merakit APK Android (Mode Developer)
+    - name: Paksa Mesin Inti Android (Gradle) Cetak APK!
       run: |
         cordova create game com.banggo.mosquito "MosquitoInvasion"
         
-        # Pindahkan kodemu
+        # Pindahkan aset ganteng buatan bosku
         if [ -d "www" ]; then
           cp -r www/* game/www/
         else
@@ -38,15 +38,18 @@ jobs:
         fi
         
         cp config.xml game/config.xml
+        
         cd game
         cordova platform add android
+        cordova prepare android
         
-        # Bikin APK-nya
-        cordova build android
+        # JALUR KASAR: Paksa sistem bawaan Android merakit APK-nya!
+        cd platforms/android
+        chmod +x gradlew
+        ./gradlew assembleDebug
 
     - name: Kirim APK ke Bosku!
       uses: actions/upload-artifact@v4
       with:
         name: Mosquito-Invasion-APK
-        # Tembak langsung ke alamat pasti file-nya berada!
         path: game/platforms/android/app/build/outputs/apk/debug/app-debug.apk

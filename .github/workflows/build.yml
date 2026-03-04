@@ -20,7 +20,7 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: '11'
+        java-version: '17'
 
     - name: Install Cordova
       run: npm install -g cordova
@@ -30,7 +30,6 @@ jobs:
         cordova create game com.banggo.mosquito "Mosquito Invasion"
         rm -rf game/www/*
         
-        # Script Pintar: Cek otomatis posisi file HTML & Assets
         if [ -d "www" ]; then
           cp -r www/* game/www/
         else
@@ -44,14 +43,14 @@ jobs:
         cordova build android --release
         cordova build android --release -- --packageType=bundle
 
-    - name: Upload APK (Siap Install di Tab)
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: Mosquito-Invasion-APK
         path: game/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
 
-    - name: Upload AAB (Untuk Play Store)
+    - name: Upload AAB
       uses: actions/upload-artifact@v4
-        with:
+      with:
         name: Mosquito-Invasion-AAB
         path: game/platforms/android/app/build/outputs/bundle/release/app-release.aab

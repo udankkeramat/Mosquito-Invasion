@@ -28,9 +28,8 @@ jobs:
     - name: Merakit APK Android (Mode Developer)
       run: |
         cordova create game com.banggo.mosquito "MosquitoInvasion"
-        rm -rf game/www/*
         
-        # Masukkan file gamemu
+        # Pindahkan kodemu
         if [ -d "www" ]; then
           cp -r www/* game/www/
         else
@@ -42,14 +41,12 @@ jobs:
         cd game
         cordova platform add android
         
-        # MERAKIT MODE DEBUG (Pasti Keluar APK-nya!)
+        # Bikin APK-nya
         cordova build android
-        
-        # MANTRA SAPU JAGAT: Tarik paksa APK ke halaman depan!
-        find . -name "*.apk" -exec cp {} ../ \;
 
     - name: Kirim APK ke Bosku!
       uses: actions/upload-artifact@v4
       with:
         name: Mosquito-Invasion-APK
-        path: '*.apk'
+        # Tembak langsung ke alamat pasti file-nya berada!
+        path: game/platforms/android/app/build/outputs/apk/debug/app-debug.apk
